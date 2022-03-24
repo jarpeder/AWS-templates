@@ -1,14 +1,7 @@
 # This is a PoC of AWS Network Security Controls Design
-# 
 # Contains two basic VPC and an inspection VPC with AWS FW.
-# 
-# 
-#
-# 
 #
 # WARNING! Deploying this template will incur AWS costs.
-# 
-# 
 # 
 
 AWSTemplateFormatVersion: 2010-09-09
