@@ -1,0 +1,279 @@
+# This is a PoC of AWS Network Security Controls Design
+# 
+# Contains two basic VPC and an inspection VPC with AWS FW.
+# 
+# 
+#
+# 
+#
+# WARNING! Deploying this template will incur AWS costs.
+# 
+# 
+# 
+
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  NewVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      InstanceTenancy: default
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: NewVPC
+  TransitGateway:
+    Type: 'AWS::EC2::TransitGateway'
+    Properties:
+      AmazonSideAsn: 64513
+      Description: TGW as Security control
+      DefaultRouteTableAssociation: disable
+      DefaultRouteTablePropagation: disable
+  NewVPCTGWattachment:
+    Type: 'AWS::EC2::TransitGatewayAttachment'
+    Properties:
+      SubnetIds:
+        - !Ref NewVPCTGWsubnet
+      TransitGatewayId: !Ref TransitGateway
+      VpcId: !Ref NewVPC
+  OldVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      InstanceTenancy: default
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: OldVPC
+  OldVPCTGWattachment:
+    Type: 'AWS::EC2::TransitGatewayAttachment'
+    Properties:
+      SubnetIds:
+        - !Ref OldVPCTGWsubnet
+      TransitGatewayId: !Ref TransitGateway
+      VpcId: !Ref OldVPC
+  NVPCRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref NewVPC
+  OVPCRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref OldVPC
+  OldVPCdefGW:
+    Type: 'AWS::EC2::Route'
+    DependsOn: OldVPC
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      TransitGatewayId: !Ref TransitGateway
+      RouteTableId: !Ref OVPCRouteTable
+  NewVPCdefGW:
+    Type: 'AWS::EC2::Route'
+    DependsOn: NewVPC
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      TransitGatewayId: !Ref TransitGateway
+      RouteTableId: !Ref NVPCRouteTable
+  OldVPCSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref OldVPC
+      CidrBlock: 10.1.0.0/24
+      MapPublicIpOnLaunch: false
+  NewVPCSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref NewVPC
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: false
+  NewVPCSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref NVPCRouteTable
+      SubnetId: !Ref NewVPCSubnet
+  OldVPCSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref OVPCRouteTable
+      SubnetId: !Ref OldVPCSubnet
+  OldVPCTGWsubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref OldVPC
+      CidrBlock: 10.1.1.0/24
+      MapPublicIpOnLaunch: false
+  NewVPCTGWsubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref NewVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: false
+  FirewallVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.3.0.0/16
+      InstanceTenancy: default
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: FirewallVPC
+  FWTGWRTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref FirewallVPC
+  FWRTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref FirewallVPC
+  FWTGWSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref FirewallVPC
+      CidrBlock: 10.3.1.0/24
+      MapPublicIpOnLaunch: false
+  FWSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref FirewallVPC
+      CidrBlock: 10.3.2.0/24
+      MapPublicIpOnLaunch: false
+  FirewallVPCGWattachment:
+    Type: 'AWS::EC2::TransitGatewayAttachment'
+    Properties:
+      SubnetIds:
+        - !Ref FWTGWSubnet
+      TransitGatewayId: !Ref TransitGateway
+      VpcId: !Ref FirewallVPC
+  FWSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref FWRTable
+      SubnetId: !Ref FWSubnet
+  FWTGWSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref FWTGWRTable
+      SubnetId: !Ref FWTGWSubnet
+  FWDefRouteTGW:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      TransitGatewayId: !Ref TransitGateway
+      RouteTableId: !Ref FWTGWRTable
+  FWInternalDefaultRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref FWRTable
+  VPCTGWRouteTable:
+    Type: 'AWS::EC2::TransitGatewayRouteTable'
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+  FWRouteTable:
+    Type: 'AWS::EC2::TransitGatewayRouteTable'
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+  AssociateOldVPCRouteTable:
+    Type: 'AWS::EC2::TransitGatewayRouteTableAssociation'
+    Properties:
+      TransitGatewayAttachmentId: !Ref OldVPCTGWattachment
+      TransitGatewayRouteTableId: !Ref VPCTGWRouteTable
+  AssociateNewVPCRouteTable:
+    Type: 'AWS::EC2::TransitGatewayRouteTableAssociation'
+    Properties:
+      TransitGatewayAttachmentId: !Ref NewVPCTGWattachment
+      TransitGatewayRouteTableId: !Ref VPCTGWRouteTable
+  AssociateFirewallVPCRouteTable:
+    Type: 'AWS::EC2::TransitGatewayRouteTableAssociation'
+    Properties:
+      TransitGatewayAttachmentId: !Ref FirewallVPCGWattachment
+      TransitGatewayRouteTableId: !Ref FWRouteTable
+  PropagateOldVPCRoute:
+    Type: 'AWS::EC2::TransitGatewayRouteTablePropagation'
+    Properties:
+      TransitGatewayAttachmentId: !Ref OldVPCTGWattachment
+      TransitGatewayRouteTableId: !Ref FWRouteTable
+  PropagateNewVPCRoute:
+    Type: 'AWS::EC2::TransitGatewayRouteTablePropagation'
+    Properties:
+      TransitGatewayAttachmentId: !Ref NewVPCTGWattachment
+      TransitGatewayRouteTableId: !Ref FWRouteTable
+  FWInspectRoute:
+    Type: 'AWS::EC2::TransitGatewayRoute'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      TransitGatewayAttachmentId: !Ref FirewallVPCGWattachment
+      TransitGatewayRouteTableId: !Ref VPCTGWRouteTable
+  ICMPAlertStatefulRuleGroup:
+    Type: 'AWS::NetworkFirewall::RuleGroup'
+    Properties:
+      RuleGroupName: !Sub 'icmp-alert-${AWS::StackName}'
+      Type: STATEFUL
+      Capacity: 100
+      RuleGroup:
+        RulesSource:
+          StatefulRules:
+            - Action: ALERT
+              Header:
+                Direction: ANY
+                Protocol: ICMP
+                Destination: ANY
+                Source: ANY
+                DestinationPort: ANY
+                SourcePort: ANY
+              RuleOptions:
+                - Keyword: 'sid:1'
+      Tags:
+        - Key: Name
+          Value: !Sub 'icmp-alert-${AWS::StackName}'
+  DomainAllowStatefulRuleGroup:
+    Type: 'AWS::NetworkFirewall::RuleGroup'
+    Properties:
+      RuleGroupName: !Sub 'domain-allow-${AWS::StackName}'
+      Type: STATEFUL
+      Capacity: 100
+      RuleGroup:
+        RuleVariables:
+          IPSets:
+            HOME_NET:
+              Definition:
+                - 10.0.0.0/8
+        RulesSource:
+          RulesSourceList:
+            TargetTypes:
+              - HTTP_HOST
+              - TLS_SNI
+            Targets:
+              - .amazon.com
+            GeneratedRulesType: ALLOWLIST
+      Tags:
+        - Key: Name
+          Value: !Sub 'domain-allow-${AWS::StackName}'
+  InspectionFirewallPolicy:
+    Type: 'AWS::NetworkFirewall::FirewallPolicy'
+    Properties:
+      FirewallPolicyName: !Sub 'inspection-firewall-policy-${AWS::StackName}'
+      FirewallPolicy:
+        StatelessDefaultActions:
+          - 'aws:forward_to_sfe'
+        StatelessFragmentDefaultActions:
+          - 'aws:forward_to_sfe'
+        StatefulRuleGroupReferences:
+          - ResourceArn: !Ref ICMPAlertStatefulRuleGroup
+      Tags:
+        - Key: Name
+          Value: !Sub 'inspection-firewall-policy-${AWS::StackName}'
+  InspectionFirewall:
+    Type: AWS::NetworkFirewall::Firewall
+    Properties:
+      FirewallName: !Sub "inspection-firewall-${AWS::StackName}"
+      FirewallPolicyArn: !Ref InspectionFirewallPolicy
+      VpcId: !Ref FirewallVPC
+      SubnetMappings:
+        - SubnetId: !Ref FWSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub "inspection-firewall-${AWS::StackName}"
