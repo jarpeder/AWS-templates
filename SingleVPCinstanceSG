@@ -1,0 +1,48 @@
+# This is a PoC of AWS Network Security Controls Design and is not fully tested.
+# Contains one VPC and a SG attached to an instance.
+# Content is subject for change.
+#
+# WARNING! Deploying this template will incur AWS costs.
+# 
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  VPCSG:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-${AWS::StackName}'
+  InstanceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: ICMP access from 10.1.0.0/16
+      GroupName: InstanceSecurityGroup
+      VpcId: !Ref VPCSG
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          CidrIp: 10.0.0.0/16
+          FromPort: '-1'
+          ToPort: '-1'
+  SUBA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPCSG
+      CidrBlock: 10.1.0.0/28
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-tgw-${AWS::StackName}'
+  INSA:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      SubnetId: !Ref SUBA
+      InstanceType: t2.micro
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-${AWS::StackName}'
