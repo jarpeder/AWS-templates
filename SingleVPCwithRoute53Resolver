@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  VPC1:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-${AWS::StackName}'
+  SUBA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.1.0.0/28
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-tgw-${AWS::StackName}'
+  INSA:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      SubnetId: !Ref SUBA
+      InstanceType: t2.micro
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-${AWS::StackName}'
+  Route53ResolverFirewallRuleGroup:
+        Type: "AWS::Route53Resolver::FirewallRuleGroup"
+        Properties:
+            Name: "DNS-RULE1"
+            FirewallRules: 
+              - 
+                Action: "BLOCK"
+                BlockResponse: "NXDOMAIN"
+                FirewallDomainListId: "rslvr-fdl-19c22a22cc624ad7"
+                Priority: 1
+              - 
+                Action: "BLOCK"
+                BlockResponse: "NXDOMAIN"
+                FirewallDomainListId: "rslvr-fdl-bd383ec1cede45cc"
+                Priority: 2
+  Route53ResolverFirewallRuleGroupAssociation:
+        Type: "AWS::Route53Resolver::FirewallRuleGroupAssociation"
+        Properties:
+            Name: "rgassoc-vpc-013dd08644298f177-rslvr-frg-3a52d5236b2741"
+            Priority: 101
+            MutationProtection: "DISABLED"
+            FirewallRuleGroupId: "rslvr-frg-3a52d5236b2741d6"
+            VpcId: "VPC1"
