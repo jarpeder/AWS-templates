@@ -1,3 +1,9 @@
+# This is a PoC of AWS Network Security Controls Design and is not fully tested.
+# Contains one VPC with Route53 Resolver DNS rule attached to an instance.
+# Content is subject for change.
+#
+# WARNING! Deploying this template will incur AWS costs.
+# 
 AWSTemplateFormatVersion: 2010-09-09
 Resources:
   VPC1:
