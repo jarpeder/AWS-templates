@@ -87,3 +87,4 @@ Resources:
     Type: 'AWS::WAFv2::WebACLAssociation'
     Properties:
       ResourceArn: !Ref INSLoadBalancer
+      WebACLArn: !Ref WAF2WAC1V9D
