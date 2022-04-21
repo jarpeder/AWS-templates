@@ -1,6 +1,6 @@
 # This is a PoC of AWS Network Security Controls Design and is not fully tested.
 # Contains one VPC with multiple route tables.
-# Content is subject for change.
+# Content is experimental and subject to change.
 #
 # WARNING! Deploying this template will incur AWS costs.
 # 
