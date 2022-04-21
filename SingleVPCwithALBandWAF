@@ -1,0 +1,89 @@
+# This is a PoC of AWS Network Security Controls Design and is not fully tested.
+# Contains one VPC with two instances and one ALB with WAF rule
+# Content is experimental and subject to change.
+#
+# WARNING! Deploying this template will incur AWS costs.
+# 
+Resources:
+  VPC1:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-${AWS::StackName}'
+  SUBA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.1.0.0/28
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-tgw-${AWS::StackName}'
+  INSA:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      SubnetId: !Ref SUBA
+      InstanceType: t2.micro
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-${AWS::StackName}'
+  INSB:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      SubnetId: !Ref SUBA
+      InstanceType: t2.micro
+      Tags:
+        - Key: Name
+          Value: !Sub 'spoke-a-${AWS::StackName}'
+  INSLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
+    Properties:
+      AvailabilityZones:
+        - us-east-1a
+      Instances:
+        - Ref: INSA
+        - Ref: INSB
+      Listeners:
+        - LoadBalancerPort: '80'
+          InstancePort: '80'
+          Protocol: HTTP
+      HealthCheck:
+        Target: 'HTTP:80/'
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '5'
+        Interval: '30'
+        Timeout: '5'
+  WAF2WAC1V9D:
+    Type: 'AWS::WAFv2::WebACL'
+    Properties:
+      Name: WEBACL
+      Description: ''
+      DefaultAction:
+        Block: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: false
+        CloudWatchMetricsEnabled: true
+        MetricName: WEBACL
+      Scope: REGIONAL
+      Rules:
+        - Name: AWS-AWSManagedRulesAmazonIpReputationList
+          Priority: 0
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+          VisibilityConfig:
+            SampledRequestsEnabled: false
+            CloudWatchMetricsEnabled: false
+            MetricName: AWS-AWSManagedRulesAmazonIpReputationList
+  WAFv2WebACLAssociation:
+    Type: 'AWS::WAFv2::WebACLAssociation'
+    Properties:
+      ResourceArn: !Ref INSLoadBalancer
